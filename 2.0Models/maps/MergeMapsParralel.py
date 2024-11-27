@@ -157,7 +157,7 @@ def process_data_with_geopy(input_csv, output_csv):
 
     # Standardize company names
     print("Standardizing company names...")
-    df['Company Name'] = df['Company Name'].apply(standardize)
+    df['Company Name'] = df['shipper_name'].apply(standardize)
 
     # Merge similar companies
     print("Merging similar companies...")
