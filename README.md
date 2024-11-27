@@ -88,3 +88,6 @@ The input CSV file should contain the following columns:
 ## Notes
 - Ensure geocoding requests do not exceed the rate limits of `Nominatim` by managing retries and delays.
 - Adjust thresholds for name similarity, address similarity, and distance based on the dataset characteristics.
+
+## License
+This project is **proprietary** and not open for use, distribution, or modification without explicit written permission from the author.
