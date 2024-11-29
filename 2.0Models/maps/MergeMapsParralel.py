@@ -1,66 +1,49 @@
 import pandas as pd
+from geopy import Nominatim
 from geopy.exc import GeopyError
-from geopy.geocoders import Nominatim
+from geopy.geocoders import ArcGIS
 from geopy.distance import geodesic
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
+import ssl
 import time
 from datetime import datetime
 from fuzzywuzzy import fuzz
 
+# Configuration constants
+NAME_THRESHOLD = 80  # Fuzzy matching threshold for company names
+DISTANCE_THRESHOLD = 1000  # Maximum allowable distance (in miles) for grouping companies
+RETRY = 3  # Number of retries for geocoding
+DELAY = 2  # Delay between retries (seconds)
 
-NAME_THRESHOLD = 80
-DISTANCE_THRESHOLD = 50
-RETRY = 3
-DELAY = 2
+# Initialize ArcGIS geocoder
+geolocator = Nominatim(user_agent="geo_app")
 
 def standardize(text):
     """
-    Standardizes the input text by converting it to uppercase, removing extra spaces,
-    and trimming whitespace.
-
-    Args:
-        text (str): The input text to standardize.
-
-    Returns:
-        str: The standardized text.
+    Standardizes input text: converts to uppercase, removes extra spaces, and trims whitespace.
     """
     text = str(text).upper()
     return ' '.join(text.split()).strip()
 
 def get_geolocation(address, retries=RETRY, delay=DELAY):
     """
-    Retrieves latitude and longitude for a given address using the Nominatim geolocator.
-
-    Args:
-        address (str): The address to geocode.
-        retries (int): Number of retry attempts in case of failure. Default is 3.
-        delay (int): Delay between retry attempts in seconds. Default is 2.
-
-    Returns:
-        tuple: Latitude and longitude of the address, or (0, 0) if geocoding fails.
+    Geocodes an address using ArcGIS. Retries on failure with exponential backoff.
     """
-    geolocator = Nominatim(user_agent="geo_match")
     for attempt in range(retries):
         try:
             location = geolocator.geocode(address)
             if location:
                 return (location.latitude, location.longitude)
             else:
-                return (0, 0)
+                return (0, 0)  # Default if geocoding fails
         except GeopyError:
             time.sleep(delay * (2 ** attempt))  # Exponential backoff
     return (0, 0)
 
 def parallel_geocoding(addresses):
     """
-    Executes geocoding in parallel for a list of addresses.
-
-    Args:
-        addresses (iterable): A list or series of addresses to geocode.
-
-    Returns:
-        list: A list of tuples containing latitude and longitude for each address.
+    Executes geocoding in parallel for a list of addresses using multiprocessing.
     """
     with Pool(cpu_count()) as pool:
         results = list(tqdm(pool.imap(get_geolocation, addresses), total=len(addresses), desc="Geocoding"))
@@ -68,26 +51,13 @@ def parallel_geocoding(addresses):
 
 def are_similar(name1, name2):
     """
-    Determines if two company names are similar based on a fuzzy matching algorithm.
-
-    Args:
-        name1 (str): The first company name.
-        name2 (str): The second company name.
-
-    Returns:
-        bool: True if the similarity score exceeds the threshold, otherwise False.
+    Checks if two company names are similar using fuzzy matching.
     """
     return fuzz.ratio(name1, name2) > NAME_THRESHOLD
 
 def merge_companies(df):
     """
-    Merges companies with similar names within a 50-mile radius into the same group.
-
-    Args:
-        df (pandas.DataFrame): DataFrame containing 'Company Name', 'Latitude', and 'Longitude' columns.
-
-    Returns:
-        pandas.DataFrame: The updated DataFrame with a new 'Location Index' column.
+    Groups companies with similar names and proximity within DISTANCE_THRESHOLD miles.
     """
     location_index = 1
     df['Location Index'] = None
@@ -118,17 +88,9 @@ def merge_companies(df):
 
     return df
 
-def process_data_with_geopy(input_csv, output_csv):
+def process_data_with_arcgis(input_csv, output_csv):
     """
-    Processes an input CSV file by standardizing addresses and company names, performing geocoding,
-    and merging companies with similar names within a geographic proximity.
-
-    Args:
-        input_csv (str): Path to the input CSV file.
-        output_csv (str): Path to save the processed output CSV file.
-
-    Returns:
-        None
+    Processes data by standardizing, geocoding, and merging similar companies based on names and proximity.
     """
     start_time = time.time()
     print(f"Process started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -136,6 +98,7 @@ def process_data_with_geopy(input_csv, output_csv):
     # Load data
     try:
         df = pd.read_csv(input_csv)
+        df = df.head(10)
     except FileNotFoundError:
         print(f"Error: The file '{input_csv}' was not found.")
         return
@@ -150,7 +113,7 @@ def process_data_with_geopy(input_csv, output_csv):
     print("Geocoding addresses in parallel...")
     df['Coordinates'] = parallel_geocoding(df['Standardized Address'])
 
-    # Split coordinates into latitude and longitude for clarity
+    # Split coordinates into latitude and longitude
     df['Latitude'] = df['Coordinates'].apply(lambda x: x[0])
     df['Longitude'] = df['Coordinates'].apply(lambda x: x[1])
     df.drop(columns=['Coordinates', 'Standardized Address'], inplace=True)
@@ -177,7 +140,7 @@ def process_data_with_geopy(input_csv, output_csv):
 
 # Example usage
 if __name__ == "__main__":
-    process_data_with_geopy(
+    process_data_with_arcgis(
         input_csv='../import_yeti.csv',
         output_csv='./merged_companies.csv'
     )
