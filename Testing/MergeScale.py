@@ -39,7 +39,7 @@ def calculate_similarity_chunk(chunk_data, all_data, name_weight, name_threshold
     return results
 
 
-def process_shipper_data_optimized(input_csv, output_csv, name_threshold=80, address_threshold=80, name_weight=1.0):
+def process_shipper_data_optimized(input_csv, output_csv, name_threshold=90, address_threshold=80, name_weight=1.1):
     start_time = pd.Timestamp.now()
 
     df = pd.read_csv(input_csv)
