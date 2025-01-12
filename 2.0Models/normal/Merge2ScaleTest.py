@@ -136,5 +136,5 @@ def process_shipper_data_optimized(input_csv, output_csv, name_threshold=85, add
 
 if __name__ == '__main__':
     process_shipper_data_optimized(
-        '../../Testing/shipper_name_chunk_0.csv',
-        '../../Testing/FINALimported_data.csv')
+        '../../Testing/shipper_name_chunk_2.csv',
+        '../../Testing/FINALimported_data_2.csv')
